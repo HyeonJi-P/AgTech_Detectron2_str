@@ -81,6 +81,19 @@ class CallbackHook(HookBase):
         if self._after_step:
             self._after_step(self.trainer)
 
+        curr_val = self.trainer.storage.latest().get('bbox/AP50',0)
+        
+        try:
+            _ = self.trainer.storage.history('max_bbox/AP50')
+        except:
+            self.trainer.storage.put_scalar('max_bbox/AP50',curr_val)
+            
+        max_val = self.trainer.storage.history('max_bbox/AP50')._data[-1][0]
+            
+        if curr_val>max_val:
+            self.trainer.storage.put_scalar('max_bbox/AP50', curr_val)
+            self.step(self.trainer.iter)
+
 
 class IterationTimer(HookBase):
     """
