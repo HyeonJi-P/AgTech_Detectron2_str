@@ -363,6 +363,52 @@ class COCOEvaluator(DatasetEvaluator):
         # precision has dims (iou, recall, cls, area range, max dets)
         assert len(class_names) == precisions.shape[2]
 
+        ####### coco_eval f1-score##########################################################
+        ########### from YOLOv6 evaler.py
+        coco_p_all_ = precisions[:, :, :, 0, 2]
+        map_ = np.mean(coco_p_all_[coco_p_all_>-1])
+
+        coco_p_iou50_ = precisions[0, :, :, 0, 2]
+        map50_ = np.mean(coco_p_iou50_[coco_p_iou50_>-1])
+        mp_ = np.array([np.mean(coco_p_iou50_[ii][coco_p_iou50_[ii]>-1]) for ii in range(coco_p_iou50_.shape[0])])
+        mr_ = np.linspace(.0, 1.00, int(np.round((1.00 - .0) / .01)) + 1, endpoint=True)
+        mf1_ = 2 * mp_ * mr_ / (mp_ + mr_ + 1e-16)
+        i_ = mf1_.argmax()  # max F1 index
+
+        """pf = '%-14s' + '%8.3g' * 5  # print format
+        ps = '%-14s' + '%8s' * 5
+        self._logger.info(ps % ('|category|','|precision|','|recall|','|f1 score|','|AP50|','|mAP|'))
+        self._logger.info(pf % ('all', mp_[i_], mr_[i_], mf1_[i_], map50_, map_))"""
+        results_f1 =[]
+        results_f1.append(("all",map50_, map_, mp_[i_],mr_[i_], mf1_[i_]))
+        for nc_i, name in enumerate(class_names):
+            coco_p_c = precisions[:, :, nc_i, 0, 2]
+            map = np.mean(coco_p_c[coco_p_c>-1])
+
+            coco_p_c_iou50 = precisions[0, :, nc_i, 0, 2]
+            map50 = np.mean(coco_p_c_iou50[coco_p_c_iou50>-1])
+            p = coco_p_c_iou50
+            r = np.linspace(.0, 1.00, int(np.round((1.00 - .0) / .01)) + 1, endpoint=True)
+            f1 = 2 * p * r / (p + r + 1e-16)
+            i = f1.argmax()
+            results_f1.append(("{}".format(name),map50,map,p[i], r[i], f1[i]))
+
+
+        # tabulate it
+        N_COLS = min(6, len(results_f1) * 2)
+        results_flatten = list(itertools.chain(*results_f1))
+        results_2d = itertools.zip_longest(*[results_flatten[i::N_COLS] for i in range(N_COLS)])
+        table = tabulate(
+            results_2d,
+            tablefmt="pipe",
+            floatfmt=".3f",
+            headers=["category", "AP@50", "AP@90", "Precision" ,"Recall", "F1 score"] * (N_COLS // 2),
+            numalign="left",
+        )
+        self._logger.info("Per-category {} AP and etc(custom): \n".format(iou_type) + table)
+            
+        ####################################
+
         results_per_category = []
         for idx, name in enumerate(class_names):
             # area range index 0: all area ranges
